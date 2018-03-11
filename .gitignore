@@ -21,6 +21,9 @@ js/ts.js
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
+data.csv
+data.xlsx
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/

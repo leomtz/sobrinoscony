@@ -12,3 +12,17 @@ export interface pPoints {
     x:number;
     y:number;
 }
+
+export interface pCaptions {
+    leg: string;
+    x: number;
+}
+
+export interface Country {
+    name: string;
+    becarios: Array<number>;
+    grados: Array<number>;
+    areas: Array<number>;
+    xGrados: Array<Array<number>>;
+    xAreas: Array<Array<number>>;
+}

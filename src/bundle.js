@@ -95,6 +95,27 @@ function tickStep(start, stop, count) {
   return stop < start ? -step1 : step1;
 }
 
+function sum(values, valueof) {
+  var n = values.length,
+      i = -1,
+      value,
+      sum = 0;
+
+  if (valueof == null) {
+    while (++i < n) {
+      if (value = +values[i]) sum += value; // Note: zero and null are equivalent.
+    }
+  }
+
+  else {
+    while (++i < n) {
+      if (value = +valueof(values[i], i, values)) sum += value;
+    }
+  }
+
+  return sum;
+}
+
 var noop = {value: function() {}};
 
 function dispatch() {
@@ -1040,6 +1061,12 @@ function select(selector) {
   return typeof selector === "string"
       ? new Selection([[document.querySelector(selector)]], [document.documentElement])
       : new Selection([[selector]], root);
+}
+
+function selectAll(selector) {
+  return typeof selector === "string"
+      ? new Selection([document.querySelectorAll(selector)], [document.documentElement])
+      : new Selection([selector == null ? [] : selector], root);
 }
 
 function define(constructor, factory, prototype) {
@@ -2765,22 +2792,7 @@ function cubicInOut(t) {
 
 var pi = Math.PI;
 
-var tau = 2 * Math.PI,
-    amplitude = 1,
-    period = 0.3;
-
-var elasticOut = (function custom(a, p) {
-  var s = Math.asin(1 / (a = Math.max(1, a))) * (p /= tau);
-
-  function elasticOut(t) {
-    return 1 - a * Math.pow(2, -10 * (t = +t)) * Math.sin((t + s) / p);
-  }
-
-  elasticOut.amplitude = function(a) { return custom(a, p * tau); };
-  elasticOut.period = function(p) { return custom(a, p); };
-
-  return elasticOut;
-})(amplitude, period);
+var tau = 2 * Math.PI;
 
 var defaultTiming = {
   time: null, // Set on use.
@@ -3071,6 +3083,15 @@ var csv = dsvFormat(",");
 
 var tsv = dsvFormat("\t");
 
+function responseText(response) {
+  if (!response.ok) throw new Error(response.status + " " + response.statusText);
+  return response.text();
+}
+
+function text(input, init) {
+  return fetch(input, init).then(responseText);
+}
+
 function responseJson(response) {
   if (!response.ok) throw new Error(response.status + " " + response.statusText);
   return response.json();
@@ -3079,6 +3100,16 @@ function responseJson(response) {
 function json(input, init) {
   return fetch(input, init).then(responseJson);
 }
+
+function parser(type) {
+  return function(input, init)  {
+    return text(input, init).then(function(text$$1) {
+      return (new DOMParser).parseFromString(text$$1, type);
+    });
+  };
+}
+
+var xml = parser("application/xml");
 
 function tree_add(d) {
   var x = +this._x.call(null, d),
@@ -5534,40 +5565,42 @@ ReflectContext.prototype = {
   bezierCurveTo: function(x1, y1, x2, y2, x, y) { this._context.bezierCurveTo(y1, x1, y2, x2, y, x); }
 };
 
+// We begin by fetching the data
+var promisePoints = json("/pairs.json");
+var promiseStateInfo = json("/estados.json");
+var promiseMap = xml("mx.svg");
+var promiseAll = Promise.all([promisePoints, promiseStateInfo, promiseMap]);
 // Initial canvas and plot configuration
+// This is _the_ canvas that we will use all along
+// We can set this while the promises are resolved
 var width = 1000;
-var height = 465;
+var height = 480;
 var svg$1 = select('#data')
     .append("svg")
+    .attr("id", "canvas")
     .attr("width", width)
-    .attr("height", height);
-var plotMargins = {
-    top: 50,
-    bottom: 15,
-    left: 300,
-    right: 300
-};
+    .attr("height", height)
+    .attr("fill", "grey");
 var colors$1 = ["hsl(0,100%,60%)", "hsl(52,100%,60%)", "hsl(104,100%,60%)", "hsl(156,100%,60%)", "hsl(208,100%,60%)", "hsl(260,100%,60%)", "hsl(312,100%,60%)"];
-var plotGroup = svg$1.append("g")
-    .classed("plot", true)
-    .attr("transform", "translate(" + plotMargins.left + ", " + plotMargins.top + ")");
-var plotWidth = width - plotMargins.right - plotMargins.right;
-var plotHeight = height - plotMargins.top - plotMargins.bottom;
+// var color_scale=d3.scaleLinear()
+//     .domain([0,7])
+//     .range([d3.hsl(0,1,0.6),d3.hsl(312,1,0.6)])
 var xScale = linear$2()
-    .range([0, plotWidth])
-    .domain([0, 27]);
+    .domain([0, 27])
+    .range([0, 400]);
 var yScale = linear$2()
-    .range([plotHeight, 0])
-    .domain([0, 28]);
-var pointsGroup = plotGroup.append('g')
-    .classed('points', true);
-var legendsGroup = svg$1.append('g')
-    .classed('legends', true)
-    .attr('transform', "translate(" + plotMargins.left + ",10)");
-var legends = [{ x: 0, leg: "= 100 becarios" }];
-//Initial fetch
-json("/pairs.json").then(function (data) {
-    var prepared = data.map(function (d) {
+    .domain([0, 27])
+    .range([400, 0]);
+// Helpful line grids
+// We manage views thorugh states. We start with a "squares state"
+// Different states mean different widgets. In this context we will
+// require that we have received all the data.
+promiseAll.then(function (values$$1) {
+    var JSONdata = values$$1[0];
+    var JSONstates = values$$1[1];
+    console.log(JSONdata);
+    var XMLmap = values$$1[2];
+    var prepared = JSONdata.map(function (d) {
         return {
             x: d.x,
             y: d.y,
@@ -5583,223 +5616,404 @@ json("/pairs.json").then(function (data) {
             e_year_id: d.e_year_id
         };
     });
-    var dataBound = pointsGroup.selectAll('.post')
-        .data(prepared);
-    // delete extra points
-    dataBound
-        .exit()
-        .remove();
-    // add new points
-    var enterSelection = dataBound
-        .enter()
-        .append('g')
-        .classed('post', true);
-    enterSelection.merge(dataBound)
-        .attr('transform', function (d, i) { return "translate(0, " + yScale(d.y) + ")"; });
-    var rects = enterSelection.append('rect')
-        .attr('height', 12)
-        .attr('width', 12)
-        .classed('becario', true)
-        .style('fill', "rgb(60,60,60)")
-        .style('stroke-width', '0');
-    enterSelection.merge(dataBound)
-        .transition()
-        .delay(500)
-        .duration(1000)
-        .attr('transform', function (d, i) { return "translate(" + xScale(d.x) + ", " + yScale(d.y) + ")"; });
-    function index() {
-        legends = [{ x: 0, leg: "~ 100 becarios" }];
-        legendsGroup.selectAll(".leg").remove();
-        var legendsBound = legendsGroup.selectAll(".leg")
-            .data(legends);
-        legendsBound
-            .exit()
-            .remove();
-        var enterLegends = legendsBound
-            .enter()
-            .append('g')
-            .classed('leg', true);
-        enterLegends.append("rect")
-            .attr('x', function (d) { return d.x; })
-            .attr('y', 20)
-            .attr('height', 12)
-            .attr('width', 12)
-            .classed('becario', true)
-            .style('fill', "rgb(60,60,60)")
-            .style('stroke-width', '0');
-        enterLegends.append("text")
-            .text(function (d) { return d.leg; })
-            .attr("x", function (d) { return d.x + 20; })
-            .attr("y", 32)
-            .classed('label', true);
-        rects.transition()
-            .duration(1000)
-            .attr('transform', function (d) { return "translate(0, 0)"; })
-            .style('fill', "rgb(60,60,60)");
+    var preparedStates = JSONstates.map(function (d) {
+        return {
+            name: d["name"],
+            becarios: d["total"],
+            grados: [d["2. MAE"], d["1. DOC"], d["3. ESP"], d["4. EST TEC"]],
+            areas: [d['I. FISICO MATEMATICAS Y CS. DE LA TIERRA'],
+                d['II. BIOLOGIA Y QUIMICA'],
+                d['III. MEDICINA Y CS. DE LA SALUD'],
+                d['IV. HUMANIDADES Y CS. DE LA CONDUCTA'],
+                d['V. CIENCIAS SOCIALES'],
+                d['VI. BIOTECNOLOGIA Y CS. AGROPECUARIAS'],
+                d['VII. INGENIERIAS'],
+            ]
+        };
+    });
+    var x;
+    for (x = 0; x < 33; x++) {
+        var y = preparedStates[x];
+        var x_grado = [[0, 0], [0, 0], [0, 0], [0, 0]];
+        var x_area = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]];
+        var j;
+        for (j = 0; j < 4; j++) {
+            x_grado[j] = [sum(y.grados.slice(0, j)), y.grados[j]];
+        }
+        var j;
+        for (j = 0; j < 7; j++) {
+            x_area[j] = [sum(y.areas.slice(0, j)), y.areas[j]];
+        }
+        preparedStates[x].xGrados = x_grado;
+        preparedStates[x].xAreas = x_area;
+        console.log(x_area);
+        console.log(x_grado);
     }
-    index();
-    select('#porGrado').on("click", function () {
-        var offSetX = linear$2()
-            .range([-180, 180])
-            .domain([0, 3]);
-        legends = [{ x: -140, leg: "Maestría" }, { x: 150, leg: "Doctorado" }, { x: 330, leg: "Especialización" }, { x: 480, leg: "Estancia" }];
-        legendsGroup.selectAll(".leg").remove();
+    console.log(preparedStates);
+    var state = "none";
+    // In the "squares state" we view data with squares and switch friendly
+    // between states.
+    function updateSquare(kind, legends) {
+        if (state != "squares") {
+            console.log("State Squares");
+            state = "squares";
+            select("#canvas")
+                .selectAll(".minicanvas")
+                .remove();
+            var miniCanvas = select("#canvas")
+                .append("g")
+                .attr("width", width)
+                .attr("height", height)
+                .classed("minicanvas", true);
+            var squaresGroup = miniCanvas.append('g')
+                .classed('sqGroup', true)
+                .attr("width", 400)
+                .attr("height", 400)
+                .attr("transform", "translate(300,40)");
+            var legendsGroup = miniCanvas.append('g')
+                .classed("lgGroup", true)
+                .attr("transform", "translate(400,10)");
+            var dataBound = squaresGroup.selectAll('rect')
+                .data(prepared);
+            var squares = dataBound
+                .enter()
+                .append('rect')
+                .attr('height', 12)
+                .attr('width', 12)
+                .classed('square', true)
+                .style('fill', "rgb(60,60,60)")
+                .style('stroke-width', '0');
+            squares.merge(dataBound)
+                .attr('transform', function (d) { return "translate(0, " + yScale(d.y) + ")"; });
+            squares.transition()
+                .transition()
+                .delay(500)
+                .duration(1000)
+                .attr('transform', function (d, i) { return "translate(" + xScale(d.x) + ", " + yScale(d.y) + ")"; });
+        }
+        //Clear old legends
+        //Get refs again
+        var miniCanvas = select(".minicanvas");
+        var squares = miniCanvas.select('.sqGroup').selectAll('rect').data(prepared);
+        var legendsGroup = miniCanvas.select('.lgGroup');
+        legendsGroup.selectAll('.leg').remove();
         var legendsBound = legendsGroup.selectAll(".leg")
             .data(legends);
-        legendsBound
-            .exit()
-            .remove();
         var enterLegends = legendsBound
             .enter()
             .append('g')
             .classed('leg', true);
-        enterLegends.append("rect")
+        var minis = enterLegends.append("rect")
             .attr('x', function (d) { return d.x; })
-            .attr('y', 20)
+            .attr('y', 12)
             .attr('height', 12)
             .attr('width', 12)
-            .classed('becario', true)
-            .style('fill', function (d, i) { return colors$1[i]; })
-            .style('stroke-width', '0');
-        enterLegends.append("text")
-            .text(function (d) { return d.leg; })
+            .style('stroke-width', '0')
+            .style('fill', function (d, i) { return colors$1[(2 * i + 5) % 7]; });
+        var captions = enterLegends.append("text")
             .attr("x", function (d) { return d.x + 20; })
-            .attr("y", 32)
+            .attr("y", 24)
             .classed('label', true);
-        rects.transition()
-            .duration(1000)
-            .attr('transform', function (d) { return "translate(" + (offSetX(d.grado_id) - 50) + ", 0)"; })
-            .style('fill', function (d) { return colors$1[d.grado_id]; });
-    });
-    select('#porArea').on("click", function () {
-        var offSetX = linear$2()
-            .range([-180, 180])
-            .domain([0, 6]);
-        legends = [
-            { x: -240, leg: "Físico-Matemática" },
-            { x: -160, leg: "Biología y Química" },
-            { x: -60, leg: "Medicina y C. Salud" },
-            { x: 30, leg: "Humanidades y C. Conducta" },
-            { x: 200, leg: "Ciencias Sociales" },
-            { x: 280, leg: "Biotecnología y C. Agropecuarias" },
-            { x: 480, leg: "Ingenierías" }
-        ];
-        legendsGroup.selectAll(".leg").remove();
-        var legendsBound = legendsGroup.selectAll(".leg")
-            .data(legends);
-        legendsBound
-            .exit()
-            .remove();
-        var enterLegends = legendsBound
-            .enter()
-            .append('g')
-            .classed('leg', true);
-        enterLegends.append("rect")
-            .attr('x', function (d) { return d.x; })
-            .attr('y', function (d, i) { return 30 * (i % 2); })
-            .attr('height', 12)
-            .attr('width', 12)
-            .classed('becario', true)
-            .style('fill', function (d, i) { return colors$1[i]; })
-            .style('stroke-width', '0');
-        enterLegends.append("text")
-            .text(function (d) { return d.leg; })
-            .attr("x", function (d) { return d.x + 20; })
-            .attr("y", function (d, i) { return 30 * (i % 2) + 12; })
-            .classed('label', true);
-        rects.transition()
-            .duration(2500)
-            .ease(elasticOut)
-            .attr('transform', function (d) { return "translate(" + offSetX(d.area_id) + ", 0)"; })
-            .style('fill', function (d) { return colors$1[d.area_id]; });
-    });
-    select('#porInicio').on("click", function () {
-        var offSetX = linear$2()
-            .domain([0, 6])
-            .range([-240, 240]);
-        // var colorScale=d3.scaleLinear()
-        //     .domain([0,6])
-        //     .range([0,360])
-        legends = [
-            { x: -240, leg: "2012 -" },
-            { x: -160, leg: "2013" },
-            { x: -64, leg: "2014" },
-            { x: 40, leg: "2015" },
-            { x: 214, leg: "2016" },
-            { x: 420, leg: "2017 +" }
-        ];
-        legendsGroup.selectAll(".leg").remove();
-        var legendsBound = legendsGroup.selectAll(".leg")
-            .data(legends);
-        legendsBound
-            .exit()
-            .remove();
-        var enterLegends = legendsBound
-            .enter()
-            .append('g')
-            .classed('leg', true);
-        enterLegends.append("rect")
-            .attr('x', function (d) { return d.x; })
-            .attr('y', 20)
-            .attr('height', 12)
-            .attr('width', 12)
-            .classed('becario', true)
-            .style('fill', function (d, i) { return colors$1[i]; })
-            .style('stroke-width', '0');
-        enterLegends.append("text")
-            .text(function (d) { return d.leg; })
-            .attr("x", function (d) { return d.x + 20; })
-            .attr("y", function (d, i) { return 32; })
-            .classed('label', true);
-        rects.transition()
-            .duration(1000)
-            .attr('transform', function (d) { return "translate(" + offSetX(d.s_year_id) + ", 0)"; })
-            .style('fill', function (d) { return colors$1[d.s_year_id]; });
-    });
-    select('#porFin').on("click", function () {
-        var offSetX = linear$2()
-            .domain([0, 6])
-            .range([-240, 240]);
-        // var colorScale=d3.scaleLinear()
-        //     .domain([0,6])
-        //     .range([0,360])
-        legends = [
-            { x: -240, leg: "2016 -" },
-            { x: -160, leg: "2017" },
-            { x: 40, leg: "2018" },
-            { x: 240, leg: "2019" },
-            { x: 420, leg: "2020" },
-            { x: 530, leg: "2021 +" }
-        ];
-        legendsGroup.selectAll(".leg").remove();
-        var legendsBound = legendsGroup.selectAll(".leg")
-            .data(legends);
-        legendsBound
-            .exit()
-            .remove();
-        var enterLegends = legendsBound
-            .enter()
-            .append('g')
-            .classed('leg', true);
-        enterLegends.append("rect")
-            .attr('x', function (d) { return d.x; })
-            .attr('y', 20)
-            .attr('height', 12)
-            .attr('width', 12)
-            .classed('becario', true)
-            .style('fill', function (d, i) { return colors$1[i]; })
-            .style('stroke-width', '0');
-        enterLegends.append("text")
-            .text(function (d) { return d.leg; })
-            .attr("x", function (d) { return d.x + 20; })
-            .attr("y", function (d, i) { return 32; })
-            .classed('label', true);
-        rects.transition()
-            .duration(1000)
-            .attr('transform', function (d) { return "translate(" + offSetX(d.e_year_id) + ", 0)"; })
-            .style('fill', function (d) { return colors$1[d.e_year_id]; });
-    });
-    select('#todos').on("click", index);
+        if (kind === "x") {
+            var offSetX = linear$2()
+                .range([-240, 240])
+                .domain([0, legends.length]);
+            squares.transition()
+                .delay(500)
+                .duration(1000)
+                .style('fill', "rgb(60,60,60)")
+                .attr('transform', function (d, i) { return "translate(" + xScale(d.x) + ", " + yScale(d.y) + ")"; });
+            captions
+                .text(function (d) { return d.leg; });
+            minis.style("fill", "rgb(60,60,60)");
+        }
+        if (kind === "grado_id" || kind === "s_year_id" || kind === "e_year_id" || kind === "area_id") {
+            var offSetX = linear$2()
+                .range([-240, 240])
+                .domain([0, legends.length]);
+            squares.transition()
+                .duration(1000)
+                .style('fill', function (d) { return colors$1[(2 * d[(kind)] + 5) % 7]; })
+                .attr('transform', function (d, i) { return "translate(" + (xScale(d.x) + offSetX(d[kind])) + ", " + yScale(d.y) + ")"; });
+            captions
+                .text(function (d) { return d.leg; });
+        }
+        if (kind === "area_id") {
+            minis
+                .attr('x', function (d) { return d.x; })
+                .attr('y', function (i, j) { return 24 * (j % 2); });
+            captions
+                .attr("y", function (i, j) { return 12 + 24 * (j % 2); });
+        }
+    }
+    function updateMap() {
+        if (state != "map") {
+            console.log("State Map");
+            // Set state as Map
+            state = "map";
+            select("#canvas")
+                .selectAll(".minicanvas")
+                .remove();
+            // Basic canvas config. There will be a left hand side
+            // and a right hand side
+            var miniCanvasL = select("#canvas")
+                .append("g")
+                .attr("id", "MCL")
+                .classed("minicanvas", true);
+            var miniCanvasR = select("#canvas")
+                .append("g")
+                .attr("id", "MCR")
+                .classed("minicanvas", true);
+            // Instructions go on LHS, but appear on top
+            select("#MCR")
+                .append("text")
+                .attr("x", "300")
+                .attr("y", "20")
+                .classed("instruccion", true)
+                .text("Posa el mouse sobre un estado para ver su informacion");
+            select("#MCR")
+                .append("text")
+                .attr("x", "380")
+                .attr("y", "35")
+                .classed("instruccion", true)
+                .text("Da click para fijarlo y comparar");
+            // Labels for the right hand side
+            var state_labels = ["Becarios ",
+                "Grado (% en el estado)",
+                "Área (% en el estado)"];
+            select("#MCR")
+                .selectAll("rect.stateLabel")
+                .data(state_labels)
+                .enter()
+                .append("text")
+                .text(function (d) { return d; })
+                .attr("x", "700")
+                .attr("y", function (d, i) { return "" + (20 + 120 * i); })
+                .attr("height", function (d) { return d; })
+                .classed("label", true);
+            // Mock values of LHS
+            var base_values = { name: "",
+                becarios: 0,
+                xGrados: [[0, 0.25], [0.25, 0.25], [0.5, 0.25], [0.75, 0.25]],
+                xAreas: [[0, 0.14], [0.14, 0.14], [0.28, 0.14], [0.42, 0.14], [0.56, 0.14], [0.7, 0.14], [0.84, 0.16]] };
+            // Scale for bars
+            var xScale = linear$2()
+                .range([0, 300])
+                .domain([0, 1]);
+            // Set the mock number of becarios
+            select("#MCL")
+                .selectAll(".numBec")
+                .data(["Total: " + String(base_values.becarios)])
+                .enter()
+                .append("text")
+                .text(function (d) { return d; })
+                .attr("x", "700")
+                .attr("y", "70")
+                .classed("numBec", true);
+            // Create labels, minis and mock bars for the degree
+            select("#MCR")
+                .selectAll(".degLabel")
+                .data(["Mae.", "Doc.", "Esp.", "E.T."])
+                .enter()
+                .append("text")
+                .text(function (d) { return d; })
+                .attr("x", function (d, i) { return "" + (720 + 70 * i); })
+                .attr("y", "180");
+            select("#MCR")
+                .selectAll(".degMini")
+                .data([0, 1, 2, 3])
+                .enter()
+                .append("rect")
+                .attr("y", "166")
+                .attr("x", function (d, i) { return "" + (700 + 70 * i); })
+                .attr("width", "14")
+                .attr("height", "14")
+                .style("fill", function (d, i) { return colors$1[(2 * i + 5) % 7]; })
+                .attr("class", "RHR");
+            select("#MCR")
+                .selectAll("rect.degBar")
+                .data(base_values.xGrados)
+                .enter()
+                .append("rect")
+                .attr("y", "200")
+                .attr("width", function (d) { return xScale(d[1]); })
+                .attr("x", function (d) { return 700 + xScale(d[0]); })
+                .attr("height", "20")
+                .style("fill", function (d, i) { return colors$1[(2 * i + 5) % 7]; })
+                .attr("class", "degBar");
+            // Create labels, minis and mock bars for the area             
+            select("#MCR")
+                .selectAll(".areaLabel")
+                .data(["FM", "BQ", "MS", "HC", "CS", "BA", "IN"])
+                .enter()
+                .append("text")
+                .text(function (d) { return d; })
+                .attr("x", function (d, i) { return "" + (720 + 42 * i); })
+                .attr("y", "300");
+            select("#MCR")
+                .selectAll(".areaMini")
+                .data([0, 1, 2, 3, 4, 5, 6])
+                .enter()
+                .append("rect")
+                .attr("y", "290")
+                .attr("x", function (d, i) { return "" + (705 + 42 * i); })
+                .attr("width", "10")
+                .attr("height", "10")
+                .style("fill", function (d, i) { return colors$1[(2 * i + 5) % 7]; });
+            select("#MCR")
+                .selectAll("rect.areasBar")
+                .data(base_values.xAreas)
+                .enter()
+                .append("rect")
+                .attr("y", "320")
+                .attr("width", function (d) { return xScale(d[1]); })
+                .attr("x", function (d) { return 700 + xScale(d[0]); })
+                .attr("height", "20")
+                .style("fill", function (d, i) { return colors$1[(2 * i + 5) % 7]; })
+                .attr("class", "areasBar");
+            // Labels for states
+            select("#MCL")
+                .append("text")
+                .attr("x", "20")
+                .attr("y", "420")
+                .classed("stateName", true)
+                .text("");
+            //Insert the map and deal with the listening of mouse events  
+            var importedNode = document.importNode(XMLmap.documentElement, true);
+            document.getElementById("MCL").appendChild(importedNode);
+            var selected = "none";
+            select("#MCL")
+                .select("g")
+                .attr("transform", "translate(0,0) scale(0.1,0.1)")
+                .transition()
+                .duration(500)
+                .attr("transform", "translate(0,20) scale(0.65,0.65)")
+                .selection()
+                .selectAll("path")
+                .data(preparedStates)
+                .style("fill", "rgb(60,60,60)")
+                .on("mouseover", function (d, i) {
+                var grados = d.grados;
+                var areas = d.areas;
+                var becarios = d.becarios;
+                var estado = d.name;
+                select(this)
+                    .transition()
+                    .style("fill", "rgb(120,120,120)");
+                selectAll(".degBar")
+                    .data(d.xGrados)
+                    .transition()
+                    .attr("width", function (d) { return xScale(d[1]); })
+                    .attr("x", function (d) { return 700 + xScale(d[0]); });
+                selectAll(".areasBar")
+                    .data(d.xAreas)
+                    .transition()
+                    .attr("width", function (d) { return xScale(d[1]); })
+                    .attr("x", function (d) { return 700 + xScale(d[0]); });
+                select(".stateName")
+                    .text(estado);
+                select("#MCL")
+                    .selectAll(".numBec")
+                    .data([becarios])
+                    .text(function (d) { return "Total: " + d.toString(); });
+            })
+                .on("mouseout", function (d, i) {
+                if (selected != d.name) {
+                    select(this)
+                        .transition()
+                        .style("fill", "rgb(60,60,60)");
+                }
+                selectAll(".degBar")
+                    .data(base_values.xGrados)
+                    .transition()
+                    .attr("width", function (d) { return xScale(d[1]); })
+                    .attr("x", function (d) { return 700 + xScale(d[0]); });
+                selectAll(".areasBar")
+                    .data(base_values.xAreas)
+                    .transition()
+                    .attr("width", function (d) { return xScale(d[1]); })
+                    .attr("x", function (d) { return 700 + xScale(d[0]); });
+                select("#MCL")
+                    .selectAll(".numBec")
+                    .data(["Total: " + String(base_values.becarios)])
+                    .text(function (d) { return d; });
+                select(".stateName")
+                    .text(base_values.name);
+            })
+                .on("click", function (d) {
+                if (selected != "none") {
+                    var sel_state = document.querySelector("[name=\"" + selected + "\"]");
+                    sel_state.style.fill = "rgb(60,60,60)";
+                }
+                base_values = d;
+                selected = d.name;
+            });
+        }
+    }
+    // function updateBec(){
+    // }
+    var legendsIndex = [{ x: 20, leg: "~ 100 becarios" }];
+    var legendsGrado = [
+        { x: -250, leg: "Maestría" },
+        { x: 40, leg: "Doctorado" },
+        { x: 210, leg: "Especialización" },
+        { x: 370, leg: "Estancia" }
+    ];
+    var legendsInicio = [
+        { x: -350, leg: "2012 -" },
+        { x: -260, leg: "2013" },
+        { x: -165, leg: "2014" },
+        { x: -55, leg: "2015" },
+        { x: 115, leg: "2016" },
+        { x: 330, leg: "2017 +" }
+    ];
+    var legendsFin = [
+        { x: -350, leg: "2016 -" },
+        { x: -260, leg: "2017" },
+        { x: -60, leg: "2018" },
+        { x: 140, leg: "2019" },
+        { x: 320, leg: "2020" },
+        { x: 430, leg: "2021 +" }
+    ];
+    var legendsArea = [
+        { x: -340, leg: "Físico-Matemática" },
+        { x: -240, leg: "Biología y Química" },
+        { x: -125, leg: "Medicina y C. Salud" },
+        { x: -20, leg: "Humanidades y C. Conducta" },
+        { x: 115, leg: "Ciencias Sociales" },
+        { x: 255, leg: "Biotecnología y C. Agropecuarias" },
+        { x: 370, leg: "Ingenierías" }
+    ];
+    //Button listening
+    select('#todos').on("click", function (r) { return updateSquare("x", legendsIndex); });
+    select('#porArea').on("click", function (r) { return updateSquare("area_id", legendsArea); });
+    select('#porGrado').on("click", function (r) { return updateSquare("grado_id", legendsGrado); });
+    select('#porInicio').on("click", function (r) { return updateSquare("s_year_id", legendsInicio); });
+    select('#porFin').on("click", function (r) { return updateSquare("e_year_id", legendsFin); });
+    select('#porEstado').on("click", function (r) { return updateMap(); });
+    updateSquare("x", legendsIndex);
 });
+// //Listening functions hover: Mapa
+// d3.select('#porEstado').on("click",  function () {
+//     d3.xml<XMLDocument>("mx.svg").then(function(xml) {
+//     var k=d3.select("#viz").select("svg")
+//         .attr("width", 500)
+//         .attr("height", 315)
+//             .select("g")
+//             .attr("transform","scale(0.5,0.5)")
+//             .attr("fill","rgb(0,0,43)")
+//                 .selectAll("path")
+//                 .on("mouseover", handleMouseOver)
+//                 .on("mouseout", handleMouseOut);
+//     }
+//     )
+// })
+// // Handling Mouseover
+// // function handleMouseOver(){
+// //     d3.select(this).attr("fill","rgb(200,55,113)");
+// // }
+// // function handleMouseOut(){
+// //     d3.select(this).attr("fill","rgb(0,0,43)");
+// // }
 
 })));

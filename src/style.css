@@ -15,6 +15,24 @@ body{
     text-align: center;
 }
 
+path#nohover{
+    fill:rgb(60,60,60);
+}
+
+path#hover{
+    fill:rgb(120,120,120);
+}
+
+path#selected#nohover{
+    fill:rgb(120,120,120);
+}
+
+
+svg{
+    display: block;
+    margin:auto;
+}
+
 div#data, div#header, div#footer {
     text-align: center;
     /* padding: 1px; */
@@ -22,9 +40,31 @@ div#data, div#header, div#footer {
     /* background-color: white; */
 }
 
-
-text.label{
-    /* font-weight:; */
+text{
     font-family: Arial, Helvetica, sans-serif;
     fill: rgb(20,20,20);
+}
+
+/* text.label{
+} */
+
+text.stateName{
+    font-size: 28pt;
+    font-weight: bolder;
+    fill: rgb(60,60,60);
+}
+
+text.areaLabel{
+    font-size: 10pt;
+}
+
+text.numBec{
+    font-size: 28pt;
+    font-weight: bold;
+    fill: rgb(60,60,60);
+}
+
+text.instruccion{
+    font-size: 10pt;
+    fill: rgb(80,80,80);
 }

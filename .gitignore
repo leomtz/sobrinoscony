@@ -23,6 +23,7 @@ js/ts.js
 
 data.csv
 data.xlsx
+.ipynb_checkpoints
 
 # Build results
 [Dd]ebug/

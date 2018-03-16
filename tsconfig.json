@@ -1,11 +1,17 @@
 {
     "compilerOptions": {
-        "noImplicitAny": true,
-        "target": "es5",
-        "sourceMap": true,
-        "declaration": true,
         "module": "es2015",
-        "moduleResolution": "node"
+        "target": "es5",
+        "noImplicitAny": true,
+        "declaration": true,
+        "sourceMap": true,
+        "moduleResolution": "node",
+        "lib": [
+            "dom",
+            "es2015",
+            "es5",
+            "es6"
+        ]
     },
     "exclude": [
         "node_modules",

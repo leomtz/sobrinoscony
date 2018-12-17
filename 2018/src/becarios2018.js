@@ -2,7 +2,7 @@ import * as d3 from 'd3';
 // We begin by fetching the data
 var promisePoints = d3.json("/pairs2018.json");
 var promiseStateInfo = d3.json("/estados2018.json");
-var promiseMap = d3.xml("mx.svg");
+var promiseMap = d3.xml("mxalph.svg");
 var promiseAll = Promise.all([promisePoints, promiseStateInfo, promiseMap]);
 // Initial canvas and plot configuration
 // This is _the_ canvas that we will use all along

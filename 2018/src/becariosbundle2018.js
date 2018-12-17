@@ -5579,7 +5579,7 @@ ReflectContext.prototype = {
 // We begin by fetching the data
 var promisePoints = json("/pairs2018.json");
 var promiseStateInfo = json("/estados2018.json");
-var promiseMap = xml("mx.svg");
+var promiseMap = xml("mxalph.svg");
 var promiseAll = Promise.all([promisePoints, promiseStateInfo, promiseMap]);
 // Initial canvas and plot configuration
 // This is _the_ canvas that we will use all along

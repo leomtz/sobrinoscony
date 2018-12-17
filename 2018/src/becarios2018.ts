@@ -6,7 +6,7 @@ import { Country } from './pairpoints';
 // We begin by fetching the data
 var promisePoints = d3.json<Array<pPoints>>("/pairs2018.json");
 var promiseStateInfo = d3.json<JSON>("/estados2018.json");
-var promiseMap = d3.xml("mx.svg");
+var promiseMap = d3.xml("mxalph.svg");
 var promiseAll = Promise.all([promisePoints,promiseStateInfo,promiseMap]);
 
 // Initial canvas and plot configuration

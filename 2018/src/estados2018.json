@@ -119,7 +119,7 @@
         "V. CIENCIAS SOCIALES": 0.20004370151862777,
         "VI. BIOTECNOLOGIA Y CS. AGROPECUARIAS": 0.04310062274664045,
         "VII. INGENIERIAS": 0.19436250409701736,
-        "name": "Ciudad De Mexico",
+        "name": "Ciudad De México",
         "total": 18306
     },
     {
@@ -178,7 +178,7 @@
         "V. CIENCIAS SOCIALES": 0.20150115473441108,
         "VI. BIOTECNOLOGIA Y CS. AGROPECUARIAS": 0.3533487297921478,
         "VII. INGENIERIAS": 0.11403002309468822,
-        "name": "Estado De Mexico",
+        "name": "Estado De México",
         "total": 3464,
         "4. EST TEC": 0
     },
@@ -253,7 +253,7 @@
         "V. CIENCIAS SOCIALES": 0.222104706504495,
         "VI. BIOTECNOLOGIA Y CS. AGROPECUARIAS": 0.13960867265996826,
         "VII. INGENIERIAS": 0.24431517715494447,
-        "name": "Michoacan",
+        "name": "Michoacán",
         "total": 1891,
         "4. EST TEC": 0
     },
@@ -343,7 +343,7 @@
         "V. CIENCIAS SOCIALES": 0.09243243243243243,
         "VI. BIOTECNOLOGIA Y CS. AGROPECUARIAS": 0.08108108108108109,
         "VII. INGENIERIAS": 0.3978378378378378,
-        "name": "Queretaro",
+        "name": "Querétaro",
         "total": 1850,
         "4. EST TEC": 0
     },
@@ -373,7 +373,7 @@
         "V. CIENCIAS SOCIALES": 0.15959468017732742,
         "VI. BIOTECNOLOGIA Y CS. AGROPECUARIAS": 0.09246358454718176,
         "VII. INGENIERIAS": 0.2070930968967701,
-        "name": "San Luis Potosi",
+        "name": "San Luis Potosí",
         "total": 1579,
         "4. EST TEC": 0
     },
@@ -478,7 +478,7 @@
         "V. CIENCIAS SOCIALES": 0.07122507122507123,
         "VI. BIOTECNOLOGIA Y CS. AGROPECUARIAS": 0.19230769230769232,
         "VII. INGENIERIAS": 0.10826210826210826,
-        "name": "Yucatan",
+        "name": "Yucatán",
         "total": 1404,
         "4. EST TEC": 0
     },

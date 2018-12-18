@@ -459,7 +459,7 @@ promiseAll.then((values:any[]) => {
 
     // }
     
-    var legendsIndex=[{x:20,leg:"~ 100 becarios"}];
+    var legendsIndex=[{x:20,leg:"~ 80 becarios"}];
 
     var legendsGrado=[
         {x:-250,leg:"Maestría"}, 
